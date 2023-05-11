@@ -3,26 +3,29 @@
 require_relative "burnham/version"
 
 module Burnham
-  class Error < StandardError; end
-  
   class Model
-    @frames = Hash.new
+    attr_reader :frames, :name
 
-    def add_frame(frame)
+    def initialize(name)
+      @name=name
+      @frames = Hash.new
+    end
+
+    def create_frame(params)
+      params[:model] = self
+      frame = Frame.new(params)
       @frames[frame.ref] = frame
+      frame
     end
   end
 
   class Frame
-    @name = ''
-    @model = nil
-    @ref = nil
+    attr_reader :name, :model, :ref
 
     def initialize(params)
-      @name=params[:name]
       @model = params[:model]
+      @name=params[:name]
       @ref = params[:ref]
-      model.add_frame(self)
     end
 
   end

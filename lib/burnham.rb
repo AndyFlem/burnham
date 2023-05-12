@@ -22,11 +22,16 @@ module Burnham
   class Frame
     attr_reader :name, :model, :ref
 
+    attr_reader :row_count
+
     def initialize(params)
       @model = params[:model]
       @name=params[:name]
       @ref = params[:ref]
+
+      @row_count = 0
     end
 
+    def add_row(ref, name, )
   end
 end

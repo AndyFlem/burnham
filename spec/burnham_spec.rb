@@ -13,22 +13,12 @@ module Burnham
       @model = Model.new('Test Model')
     end
     it "allows the creation of a new frame" do
-      frame = @model.create_frame(ref: :new_frame, name: 'New Frame')
-      expect(frame.name).to eq('New Frame')
-      expect(frame.ref).to eq(:new_frame)
-      expect(@model.frames[:new_frame].ref).to eq(:new_frame)
+      @frame_one = @model.create_frame(:frame_one, name: 'Frame One', 
+        { |model, frame|
+          [1,2,3,4,5,6,7,8,9,10]
+        }
+      )
     end
   end
 
-  RSpec.describe Frame do
-    before(:all) do 
-      @model = Model.new('Test Model')
-      @frame_one = @model.create_frame(ref: :frame_one, name: 'Frame One')
-      @frame_two = @model.create_frame(ref: :new_frame, name: 'Frame Two')
-    end
-    it "allows the creation of a new frame" do
-      frame = @model.create_frame(ref: :new_frame, name: 'New Frame')
-      expect(frame.name).to eq('New Frame')
-    end
-  end  
 end

@@ -14,23 +14,25 @@ module Burnham
       @model = Model.new('Test Model')
     end
     it "allows the creation of a new frame" do
-      
-      #@params = @model.create_frame(:frame_one, 'Frame One',Proc.new { [1,2,3,4,5,6,7,8,9,10] }, Proc.new { |model, frame| 
 
-      @periods = @model.create_frame(:frame_one, 'Frame One',Proc.new { [1,2,3,4,5,6,7,8,9,10] }, [ 
-        {row_ref: :period_end, row_name: 'End of Period', values: Proc.new { |model, frame, row, column_key| 
+      @periods = @model.create_frame(:periods, 'Periods', Proc.new { 1..@model[:params][:periods]['Value'] }, [ 
+        [:period_end, 'End of Period', Proc.new { |frame, row, column_key| 
           (frame[:period_start][column_key] >> 1) - 1
-        }},
-
-        {row_ref: :period_start, row_name: 'Start of Period', values: Proc.new { |model, frame, row, column_key| 
-          Date.new(2023,9,1) >> (frame[:header][column_key]+1)
-        }}
+        }],
+        [:period_start, 'Start of Period', Proc.new { |frame, row, column_key| 
+          @params[:start_date]['Value'] >> (frame[:header][column_key]+1)
+        }]
       ])
       
-      
+      @params = @model.create_frame(:params, 'Parameters', ['Value'], [
+        [:start_date,'Model Start Date', Date.new(2023,9,1)],
+        [:periods,'Number of Periods', 20]
+      ])
+
       @model.run
 
-      print @frame_one.to_s
+      print @params.to_s
+      print @periods.to_s
     end
   end
 end

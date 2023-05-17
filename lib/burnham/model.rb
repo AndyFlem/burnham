@@ -14,6 +14,10 @@ module Burnham
       frame
     end
 
+    def create_list(ref, name, rows)
+      create_frame(ref, name, nil, rows)
+    end    
+
     def register_row(row)
       @rows[row.ref] = row
     end

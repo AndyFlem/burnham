@@ -1,6 +1,6 @@
 module Burnham  
   class Row
-    attr_reader :ref, :name, :frame, :is_setup
+    attr_reader :ref, :name, :frame, :is_setup, :cells
     def initialize(ref, name, frame, cell_values)
       @ref = ref
       @name = name
@@ -15,7 +15,11 @@ module Burnham
     end
 
     def [] (column_ref)
-      @cells[@frame.columns[column_ref]].value
+      if @frame.columns.has_key?(column_ref)
+        @cells[@frame.columns[column_ref]].value
+      else
+        raise "Column '#{column_ref.to_s}' not found in row '#{@ref.to_s}' of frame '#{@frame.ref.to_s}'."
+      end
     end
 
     def setup

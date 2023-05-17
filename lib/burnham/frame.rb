@@ -1,7 +1,7 @@
 module Burnham
   class Frame
     attr_reader :ref, :name, :model, :is_setup
-    attr_reader :rows, :columns
+    attr_reader :rows, :columns, :is_list
 
     def initialize(ref, name, model, columns_definition, rows_definition)
       @ref = ref
@@ -10,10 +10,11 @@ module Burnham
       @columns_definition = columns_definition
       @rows_definition = rows_definition
       @rows = Hash.new
+      @is_list = false
     end
 
     def to_s
-      "\n Header: " + @columns.keys.join(',') + "\n" + @rows.map {|row_ref, row|  row.to_s + "\n" }.join("")
+      "\n" + @ref.to_s + ':' + @name + (@is_list ? '' : ' ' + @columns.keys.join(',') ) + "\n" + @rows.map {|row_ref, row|  row.to_s + "\n" }.join("")
     end
 
     def create_row(ref, name, cell_function)
@@ -29,6 +30,9 @@ module Burnham
         columns_array = case @columns_definition
         when Proc
           @columns_definition.call(self)
+        when NilClass
+          @is_list = true
+          [:value]
         else
           @columns_definition
         end
@@ -49,11 +53,17 @@ module Burnham
     def [](row_ref)
       setup unless @is_setup
 
-      if row_ref==:header
+      row = if row_ref==:header
         @columns
-      else 
-        @rows[row_ref]
+      else
+        if @rows.has_key?(row_ref)
+          @rows[row_ref]
+        else
+          raise "Row '#{row_ref.to_s}' not found in frame '#{@ref.to_s}'."
+        end
       end
+
+      @is_list ? row.cells[0].value : row
     end
   end
 end

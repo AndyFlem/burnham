@@ -31,4 +31,6 @@ Gem::Specification.new do |spec|
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html
   spec.add_development_dependency 'rspec', '~> 3.4'
+  spec.add_dependency 'ruby-statistics'
+  spec.add_dependency 'descriptive_statistics'
 end

@@ -11,35 +11,51 @@ module Burnham
 
   RSpec.describe Model do
     before(:all) do 
-      @model = Model.new('Test Model')
+      @parameters = Model.new('Parameters')
     end
     it "allows the creation of a new frame" do
 
-      @periods = @model.create_frame(:periods, 'Periods', Proc.new { 1..@model[:params][:periods] }, [ 
-        [:period_end, 'End of Period', Proc.new { |frame, row, column| 
-          (frame[:period_start][column] >> 1) - 1
-        }],
-        [:period_start, 'Start of Period', Proc.new { |frame, row, column| 
-          @params[:start_date] >> (frame[:header][column]+1)
-        }],
-        [:rand, 'Random', Proc.new { |frame, row, column| 
-          rand()
-        }]
-        [:rand_agg, 'Aggregate of Random', Proc.new { |frame, row, column, column_number|
-          (0...column_number).each {|i| frame[:rand][]}
-        }]
-      ])
-      
-      @params = @model.create_list(:params, 'Parameters', [
-        [:start_date,'Model Start Date', Date.new(2023,9,1)],
-        [:twice_periods,'Twice Number of Periods', Proc.new { |frame| frame[:periods] * 2 }],
-        [:periods,'Number of Periods', 20],
-      ])
+      timing_parameters = @parameters.frame :timing_paramters, 'Timing Parameters' do |frame|
+        frame.row :fc_date, 'Date of Financial Close', :date,Date.new(2023,10,1)
+        frame.row :construction_months, 'Construction Period', :months, 36
+        frame.row :ppa_years, 'PPA Term', :years, 25
+        frame.row :cod_date, 'Date of COD', :date do |row|
+          frame[:fc_date] >> frame[:construction_months] 
+        end
+      end
 
-      @model.run
+      cost_parameters = @parameters.frame :cost_parameters, 'Costs' do |frame|
+        frame.row :epc_cost, 'EPC Contract Cost', :dollar_k, 400000
+        
+        frame.row :contingency_pct, 'Owners Contingency Percent', :percent, 10.0
+        frame.row :contingency, 'Owners Contingency', :dollars_k  do |row|  
+          frame[:epc_cost] * (frame[:contingency_pct] / 100)
+        end
+        
+        frame.row :es_cost, 'E&S Costs', :dollar_k, 15000
+        
+        frame.row :insurance_pct, 'Insurance Percent', :percent, 1.0
+        frame.row :insurance, 'Insurance', :dollar_k do |row|  
+          frame[:epc_cost] * (frame[:insurance_pct] / 100)
+        end
+        
+        frame.row :owners_engineer_pct, 'Owners Engineer Percent', :percent, 2.0
+        frame.row :owners_engineer, 'Owners Engineer', :dollars_k  do |row| 
+          frame[:epc_cost] * (frame[:owners_engineer_pct] / 100)
+        end
 
-      print @params.to_s
-      print @periods.to_s
+        frame.row :construction_cost, 'Construction Cost', :dollar_k do |row|
+          frame[:epc_cost] + 
+          frame[:contingency] +
+          frame[:es_cost] + 
+          frame[:insurance] +
+          frame[:owners_engineer]
+        end
+      end
+      @parameters.run
+
+      puts timing_parameters
+      puts cost_parameters
     end
   end
 end

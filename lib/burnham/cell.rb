@@ -1,42 +1,62 @@
 module Burnham
   class Cell
-    attr_reader :is_dirty
-    attr_reader :frame, :row, :column_ref
+    attr_reader :column_ref, :column_number, :is_formula, :is_run
+    attr_reader :row, :table, :model
 
-    def initialize(frame, row, column_ref, cell_value)
-      @is_dirty = true
-      @cell_value = cell_value
-      @frame = frame
+    def initialize(row, column_ref, column_number, value, block)
+      raise "Cell can only be defined with values or a formula." if not (value.nil? or block.nil?)
+      raise "Cell must be defined with either value or a formula." if (value.nil? and block.nil?)
+      
       @row = row
+      @table = row.table
+      @model = @table.model
       @column_ref = column_ref
-      @value = nil
+      @column_number = column_number
+      
+      @is_formula = value.nil?
+      @is_run = !@is_formula
+
+      if @is_formula
+        @formula = block
+      else
+        @value = value
+      end
+      @context = Context.new(self)
     end
 
+    def value=(new_value)
+      raise "Cant set a value on a formula type row cell."  + address if @is_formula
+      @value = new_value
+    end
+    
     def run
-      if @is_dirty
-        @value = case @cell_value
-        when Proc
-          @cell_value.call(@frame, @row, @column_ref)  
-        when Array
-          @cell_value[@frame.columns[column_ref]]
-        else
-          @cell_value
-        end
-        @is_dirty = false
+      raise "Can only run a formula type row cell." + address unless @is_formula
+      unless @is_run
+        @value = @formula.call(@context)
+        @is_run = true
       end
     end
 
+    def == (other)
+      value == (other.class == Cell ? other.value : other)
+    end
+
     def value
-      run if @is_dirty
+      run unless @is_run || !@is_formula
       @value
     end
 
     def address
-      [@frame.ref, @row.ref, @column_ref]
+      "[#{@row.table.ref.to_s} #{@row.table.is_list ? '(list)' : ''}, #{@row.ref.to_s} (#{@row.is_formula ? 'row formula': ''}), #{@column_ref}]"
     end
 
     def to_s
-      self.value.to_s
+      @value.to_s
+    end
+
+    def method_missing(method, *args)
+      #puts method
+      value.send(method, *args)   
     end
   end
 end

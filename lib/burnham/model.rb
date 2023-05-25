@@ -1,34 +1,29 @@
 module Burnham
   class Model
-    attr_reader :frames, :name
+    attr_reader :tables, :rows, :name
 
-    def initialize(name)
+    def initialize(name, &block)
       @name=name
-      @frames = Hash.new
+      @tables = Hash.new
       @rows = Hash.new
+      yield (self) if block_given?
     end
 
-    def create_frame(ref, name, columns, rows)
-      frame = Frame.new(ref, name, self, columns, rows)
-      @frames[frame.ref] = frame
-      frame
+    def table(ref, name, index = [:value], &block)
+      index = index.to_a if index.class == Range
+      table = Table.new(ref, name, self, index, &block)
+      @tables[table.ref] = table
+      table
     end
 
-    def create_list(ref, name, rows)
-      create_frame(ref, name, nil, rows)
-    end    
-
-    def register_row(row)
-      @rows[row.ref] = row
+    def [](table_ref)
+      raise "Table '#{table_ref.to_s}' not found in model '#{@name}'." unless @tables.has_key?(table_ref)
+      @tables[table_ref]
     end
 
-    def [](frame_ref)
-      @frames[frame_ref]
+    def run
+      @rows.each_value(&:run)      
     end
 
-    def run()
-      @frames.each { |frame_ref, frame| frame.setup }
-      @rows.each { |row_ref, row| row.run }
-    end
   end  
 end

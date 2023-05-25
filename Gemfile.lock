@@ -2,10 +2,13 @@ PATH
   remote: .
   specs:
     burnham (0.1.0)
+      descriptive_statistics
+      ruby-statistics
 
 GEM
   remote: https://rubygems.org/
   specs:
+    descriptive_statistics (2.5.1)
     diff-lcs (1.5.0)
     rake (13.0.6)
     rspec (3.12.0)
@@ -21,6 +24,7 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.12.0)
     rspec-support (3.12.0)
+    ruby-statistics (3.0.2)
 
 PLATFORMS
   x86_64-linux

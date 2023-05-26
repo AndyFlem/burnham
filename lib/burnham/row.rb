@@ -3,17 +3,14 @@ module Burnham
     include Enumerable
 
     attr_reader :table, :model
-    attr_reader :ref, :name, :unit
+    attr_reader :ref, :name, :metadata
     attr_reader :dependents 
     attr_reader :is_formula, :is_run
 
-    def initialize(ref, name, unit, parent_table, vals, block)
-      raise "Row can only be defined with values or a formula." if not (vals.nil? or block.nil?)
-      raise "Row must be defined with either values or a formula." if (vals.nil? and block.nil?)
-
+    def initialize(ref, name, metadata, parent_table, vals, block)
       @ref = ref
       @name = name
-      @unit = unit
+      @metadata = metadata
       @table = parent_table
       @model = @table.model
       @is_formula = vals.nil?
@@ -23,18 +20,18 @@ module Burnham
       @dependents = Hash.new
 
       if @is_formula
-        @contexts = @table.index.to_a.map do |index|
-          Context.new(self, index[0], index[1]+1)
+        @contexts = @table.columns.to_a.map do |columns|
+          Context.new(self, columns[0], columns[1]+1)
         end  
       else
-        @cells = @table.index.to_a.map do |index|
-          vals.class == Array ? vals[index[1]] : vals
+        @cells = @table.columns.to_a.map do |columns|
+          vals.class == Array ? vals[columns[1]] : vals
         end        
       end
     end
 
     def values=(vals)
-      raise "Cant set values on a formula type row." if @is_formula
+      raise RuntimeError.new("Cant set values on a formula type row.") if @is_formula
       if @cells.length == 1
         @cells[0] = vals
       else
@@ -64,29 +61,29 @@ module Burnham
     
     def run
       if @is_formula and not @is_run
-        puts "Running " + address + ".."
+        #puts "Running " + address + ".."
         @cells = @contexts.map do |context| 
           @formula.call(context)
         end
         @is_run = true
-        puts "..complete run " + address + "."
+        #puts "..complete run " + address + "."
       end  
     end
 
     def [] (column_ref)
-      raise "Column '#{column_ref.to_s}' not found in row '#{@ref.to_s}' of table '#{@table.ref.to_s}'." unless @table.index.include?(column_ref)
-      raise "Row not run." unless @is_run
-      @cells[@table.index[column_ref].column_number-1] #.value
+      raise ArgumentError.new("Column '#{column_ref.to_s}' not found in row '#{@ref.to_s}' of table '#{@table.ref.to_s}'.") unless @table.columns.include?(column_ref)
+      raise RuntimeError.new("Row not run." + address) unless @is_run
+      @cells[@table.columns[column_ref]] #.value
     end
 
     def cells
-      raise "Row not run " + address unless @is_run
+      raise RuntimeError.new("Row not run " + address) unless @is_run
       @cells
     end
 
     def column (column_number)
-      raise "No column number #{column_number}" if column_number > @cells.length
-      raise "Row not run." unless @is_run
+      raise ArgumentError.new("No column number #{column_number}") if column_number > @cells.length
+      raise RuntimeError.new("Row not run.") unless @is_run
       @cells[column_number]
     end
 
@@ -99,11 +96,11 @@ module Burnham
     end
 
     def to_s
-      @ref.to_s + ':' + @name + (@unit.nil? ? " ":" (#{@unit.to_s})")  +  @cells.join(',')
+      @ref.to_s + ':' + @name  +  ' ' + (@cells.nil? ? 'nil' : @cells.join(','))
     end
 
     def address
-      "row: '#{@table.ref.to_s}:#{ref.to_s}' type: #{ @is_formula ? 'formula':'value' } state:#{ @is_run ? 'run':'not run' }"
+      "'#{name}' #{@table.ref.to_s}:#{ref.to_s} type: #{ @is_formula ? 'formula':'value' } state:#{ @is_run ? 'run':'not run' }"
     end
 
     def inspect

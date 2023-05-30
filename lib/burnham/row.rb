@@ -4,30 +4,49 @@ module Burnham
 
     attr_reader :table, :model
     attr_reader :ref, :name, :metadata
-    attr_reader :dependents 
-    attr_reader :is_formula, :is_run
+    attr_reader :dependents
+    attr_reader :is_formula, :is_run, :is_cells, :is_index
 
-    def initialize(ref, name, metadata, parent_table, vals, block)
+    def new_row(ref, name, metadata, table, is_index, formula)      
+      setup(ref, name, metadata, table)
+
+      @is_cells = false
+      @formula = formula
+      @is_formula = true
+      @is_run =  false
+      @is_index = is_index
+    end
+
+    def new_cells(ref, name, metadata, table, is_index, vals, formula)
+      #p ref.to_s + " " + is_index.to_s
+      setup(ref, name, metadata, table)
+    
+      @is_cells = true
+      @formula = formula
+      @is_formula = (not formula.nil?)
+      @is_run =  (not @is_formula)
+      @is_index = is_index
+      
+      unless vals.nil?
+        if vals.class == Array
+          @cells = vals
+        else
+          @cells = [vals]
+        end
+      end
+    end
+
+    def setup(ref, name, metadata, table)
       @ref = ref
       @name = name
       @metadata = metadata
-      @table = parent_table
+      @table = table
       @model = @table.model
-      @is_formula = vals.nil?
-      @formula = block
-      @is_run = !@is_formula
-
       @dependents = Hash.new
+    end
 
-      if @is_formula
-        @contexts = @table.columns.to_a.map do |columns|
-          Context.new(self, columns[0], columns[1]+1)
-        end  
-      else
-        @cells = @table.columns.to_a.map do |columns|
-          vals.class == Array ? vals[columns[1]] : vals
-        end        
-      end
+    def length
+      @cells.length
     end
 
     def values=(vals)
@@ -42,7 +61,7 @@ module Burnham
 
     def set_dirty
       if @is_run
-        puts "Set dirty " + address
+        #puts "Set dirty " + address
         if @is_formula
           @is_run = false
           @cells = nil
@@ -62,18 +81,25 @@ module Burnham
     def run
       if @is_formula and not @is_run
         #puts "Running " + address + ".."
-        @cells = @contexts.map do |context| 
-          @formula.call(context)
+        @table.index.register_dependent(self) unless @is_index
+
+        if @is_cells
+          @cells = @table.index.cells.map.with_index do |c, i| 
+            @formula.call(CellContext.new(self, i))
+          end
+        else
+          @cells = @formula.call(Context.new(self))
         end
         @is_run = true
         #puts "..complete run " + address + "."
-      end  
+      end
     end
 
-    def [] (column_ref)
-      raise ArgumentError.new("Column '#{column_ref.to_s}' not found in row '#{@ref.to_s}' of table '#{@table.ref.to_s}'.") unless @table.columns.include?(column_ref)
+    def [] (column_ref)      
       raise RuntimeError.new("Row not run." + address) unless @is_run
-      @cells[@table.columns[column_ref]] #.value
+      indx = @table.index_of(column_ref)
+      raise RuntimeError.new("Column #{column_ref.to_s} not found in table #{@table.ref.to_s}.") if indx.nil?
+      @cells[indx]
     end
 
     def cells
@@ -81,7 +107,13 @@ module Burnham
       @cells
     end
 
+    def index_of(value) 
+      raise RuntimeError.new("Row not run " + address) unless @is_run
+      @cells.find_index(value)
+    end
+
     def column (column_number)
+      
       raise ArgumentError.new("No column number #{column_number}") if column_number > @cells.length
       raise RuntimeError.new("Row not run.") unless @is_run
       @cells[column_number]
@@ -100,7 +132,7 @@ module Burnham
     end
 
     def address
-      "'#{name}' #{@table.ref.to_s}:#{ref.to_s} type: #{ @is_formula ? 'formula':'value' } state:#{ @is_run ? 'run':'not run' }"
+      "'#{name}' #{@table.ref.to_s}:#{ref.to_s} #{ @is_index ? 'index':'' } type: #{ @is_formula ? 'formula':'value' } state:#{ @is_run ? 'run':'not run' }"
     end
 
     def inspect

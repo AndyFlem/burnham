@@ -1,48 +1,106 @@
 module Burnham
   class Table
     attr_reader :ref, :name, :model
-    attr_reader :rows, :is_list, :columns
+    attr_reader :rows, :index
 
-    def initialize(ref, name, model, columns = [:value], &block)
+    def initialize(ref, name, model, &block)
       @ref = ref
       @name = name
       @model = model
       @rows = Hash.new
-      @columns = Hash[columns.map.with_index {|key, i| [key, i]}]
-      @is_list = true if columns.length == 1
+      @index = nil
       yield (self) if block_given?
     end
 
     def to_s
-      "\n" + @ref.to_s + ':' + @name + "\n" + @columns.to_s + "\n" + @rows.map {|row_ref, row|  row.to_s + "\n" }.join("")
+      "\n" + @ref.to_s + ':' + @name + "\n" + @rows.map {|row_ref, row|  row.to_s + "\n" }.join("")
     end
 
-    # args : last hash is metadata, last argument is vals
-    def row(ref, name, *args, &block)
+    # create a row with a block that returns a vals array
+    def row(*args, &block)
+      
+      if args[0].class == Hash
+        ref=args[0][:ref]
+        name=args[0][:name]
+        metadata=args[0][:metadata]
+      else
+        ref = args[0]
+        name = args[1]
+      end
       raise ArgumentError.new("Existing row with ref: " + ref.to_s) if @rows.has_key?(ref)
+      raise ArgumentError.new("Must provide a formula for row: " + ref.to_s) if (not block_given?)
+
+      is_index = @index.nil?
+
+      row = Row.new()
+      row.new_row(ref, name, metadata, self, is_index, block)
+      @index = row if is_index
+      @rows[row.ref] = row
+      @model.register_row(row)      
+    end
+
+    # create a row with a values array or a function called against each cell
+    def cells(*args, &block)
       vals = nil
-      metadata = nil
-      args.each do |arg| 
-        if arg.class == Hash
-          metadata = arg 
-        else
-          vals = arg
-        end
+      if args[0].class == Hash
+        ref=args[0][:ref]
+        name=args[0][:name]
+        vals=args[0][:values]
+        metadata=args[0][:metadata]
+      else
+        ref = args[0]
+        name = args[1]
+        vals = args[2]
       end
-      block = nil if not (vals.nil? or block.nil?)
+      
+      vals=vals.to_a if vals.class == Range
 
-      unless @columns.length==1 or vals.nil?
-        raise ArgumentError.new("Values must be supplied for all rows (#{@columns.length}).") if vals.length != @columns.length
-      end
+      raise ArgumentError.new("Existing row with ref: " + ref.to_s) if @rows.has_key?(ref)
+      raise ArgumentError.new("Can only provide values or a formula for row: " + ref.to_s) if (not vals.nil?) and block_given?
+      raise ArgumentError.new("Must provide values or a formula for row: " + ref.to_s) if (vals.nil? and not block_given?)
 
-      row = Row.new(ref, name, metadata, self, vals, block)
+      is_index = (@index.nil? and (not vals.nil?))
+
+      row = Row.new()
+      row.new_cells(ref, name, metadata, self, is_index, vals, block)
+      @index = row if is_index
       @rows[row.ref] = row
       @model.register_row(row)
     end
 
+    #def column(value)
+    #  raise RuntimeError.new("Table not built.") unless has_index
+    #  @index.index_of(value)
+    #end
+
+    def is_list
+      raise RuntimeError.new("Table not built.") unless has_index
+      @index.values.length == 1
+    end
+
+    def width
+      raise RuntimeError.new("Table not built.") unless has_index
+      @index.length
+    end
+
+    def index_of(value)
+      raise RuntimeError.new("Table not built.") unless has_index
+      @index.find_index(value)
+    end
+
+
+    def height
+      @rows.length
+    end
+
+    def has_index
+      #puts @index.address
+      (not @index.nil?) && @index.is_run
+    end
+
     def [](row_ref)
       raise ArgumentError.new("Row '#{row_ref.to_s}' not found in table '#{@ref.to_s}'.") unless @rows.has_key?(row_ref)
-      @is_list ? @rows[row_ref].cells[0] : @rows[row_ref]
+      @index.length == 1 ? @rows[row_ref].cells[0] : @rows[row_ref]
     end
 
     def []=(row_ref, new_values)

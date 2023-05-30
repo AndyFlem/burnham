@@ -9,10 +9,10 @@ module Burnham
       yield (self) if block_given?
     end
 
-    def table(ref, name, columns = [:value], &block)
+    def table(ref, name, &block)
       raise ArgumentError.new("Cant add another table with the same ref.") if @tables.has_key?(ref)
-      columns = columns.to_a if columns.class == Range
-      table = Table.new(ref, name, self, columns, &block)
+      #columns = columns.to_a if columns.class == Range
+      table = Table.new(ref, name, self, &block)
       @tables[table.ref] = table
       table
     end
@@ -27,6 +27,11 @@ module Burnham
     end
 
     def run
+      @tables.each_value do |table|
+        if table.index.nil?
+          table.cells :index, 'Index', [:value]
+        end
+      end
       @rows.each_value(&:run)      
     end
 

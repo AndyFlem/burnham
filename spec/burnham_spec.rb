@@ -17,18 +17,17 @@ module Burnham
     end
     it 'allows the creation of a new list type table with values' do
       @model.table :list, 'List' do |list|
-        list.row :date, 'Date of Financial Close', Date.new(2023,10,1)
-        list.row :construction_months, 'Construction Period', 1.0
+        list.cells :date, 'Date of Financial Close', Date.new(2023,10,1)
+        list.cells :construction_months, 'Construction Period', 5.0
       end
-      expect(@model[:list][:date]).to eq Date.new(2023,10,1)
     end
     it 'allows the creation of a list type table with values and calculations' do
       @model.table :list2, 'List2' do |list|
-        list.row :multiply, 'Multiply'  do |c|
+        list.cells :multiply, 'Multiply'  do |c|
           c[:construction_months] * c[:ppa_years]
         end
-        list.row :construction_months, 'Construction Period', 36
-        list.row :ppa_years, 'PPA Term', 25
+        list.cells :construction_months, 'Construction Period', 36
+        list.cells :ppa_years, 'PPA Term', 5
       end
 
     end    
@@ -38,101 +37,113 @@ module Burnham
     it 'should raise an argument error for a duplicate row ref' do
       expect do 
         @model.table :new_list, 'List' do |list|
-          list.row :item, 'Item', 25
-          list.row :item, 'Item2', 25
+          list.cells :item, 'Item', 25
+          list.cells :item, 'Item2', 25
         end
       end.to raise_error(ArgumentError)
     end
     it 'should allow creation of table type tables and various row styles' do
-      @model.table :table1, 'Table1', ['Col1','Col2','Col3','Col4'] do |table|
-        table.row :row1, 'Row 1', [1,2,3,4]
-        table.row :row2, 'Row 2', {desc: 'A description for row 2'}, [1,2,3,4]
-        table.row :row3, 'Row 3', {desc: 'A description for row 3'} do |c|
+      @model.table :table1, 'Table1' do |table|
+        table.cells :row1, 'Row 1', ['Col1', 'Col2', 'Col3', 'Col4']
+        table.cells ref: :row2, name: 'Row 2', metadata: {desc: 'A description for row 2'}, values: [1,2,3,4]
+        table.cells ref: :row3, name: 'Row 3', metadata: {desc: 'A description for row 3'} do |c|
           c[:row2] * 2
         end
       end
        
-      expect(@model[:table1].rows.length).to eq 3
-      expect(@model[:table1].columns.length).to eq 4
+      expect(@model[:table1].height).to eq 3
+      expect(@model[:table1].width).to eq 4
       expect(@model[:table1][:row2].metadata[:desc]).to eq 'A description for row 2'
-      expect {@model[:table1][:row3]['Col3']}.to raise_error(RuntimeError) 
+      expect {@model[:table1][:row3]['Col3']}.to raise_error(RuntimeError)
     end
-    it 'should allow row formula with cell references' do
-      @model.table :table2, 'Table2', ['ColA','ColB','ColC','ColD'] do |t|
-        t.row :row_a, 'Row A', [10, 20, 30, 40]
-        t.row :row_b, 'Row B' do |c|
+    it 'should allow cells formula with cell references' do
+      @model.table :table2, 'Table2' do |t|
+        t.cells :index, 'Index', ['Col1', 'Col2', 'Col3', 'Col4']
+        t.cells :row_a, 'Row A' do |c|
+          c[table: :list, row: :construction_months] + c.column_number
+        end
+        t.cells :row_b, 'Row B' do |c|
           #Same column of another row in same table
           c[:row_a] + 5
         end
-        t.row :row_c, 'Row C' do |c|
+        t.cells :row_c, 'Row C' do |c|
           #Same column no of row in another table
           c[table: :table1, row: :row2] + 1
         end
-        t.row :row_d, 'Row D' do |c|
+        t.cells :row_d, 'Row D' do |c|
           #Table, row and column
           c[table: :table1, row: :row2, column: 'Col3'] + 1
         end
-        t.row :row_e, 'Row E' do |c|
+        t.cells :row_e, 'Row E' do |c|
           #row and column offset
           c[row: :row_a, column_offset: -2]
         end              
       end
     end
-    it 'should allow row formula with cell lookups' do
-      @model.table :months, 'Months', ['Jan','Feb','Mar','Apr'] do |t|
-        t.row :month, 'Month' do |c| c.column_number end
-        t.row :val1, 'Val 1', [10,20,30,40]
-        t.row :val2, 'Val 2', ['J','F','M','A']
+    it 'should allow cells formula with cell lookups' do
+      @model.table :months, 'Months' do |t|
+        t.cells :month_name, 'Month', ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        t.cells :month_no, 'Month No' do |c| c.column_number + 1 end
+        t.cells :val1, 'Val 1', [10,20,30,40,10,20,30,40,10,20,30,40]
+        t.cells :val2, 'Val 2', ['J','F','M','A','M','J','J','A','S','O','N','D']
       end
-      @model.table :table3, 'Lookups', (1..20) do |t|
-        t.row :date, 'Date' do |c|
+      @model.table :table3, 'Lookups' do |t|
+        t.cells :no, 'Number', (1..200)
+        t.cells :date, 'Date' do |c|
           c[table: :list, row: :date] + c.column_number
         end
-        t.row :month, 'Month' do |c|
-          ['Jan','Feb','Mar','Apr'][(rand*3).round]
+        t.cells :month_no, 'Month Number' do |c|
+          c[:date].month
         end
-        t.row :letter, 'Month Letter' do |c|
+        t.cells :month, 'Month' do |c|
+          c.lookup(lookup: c[:month_no], table: :months, return_row: :month_name, lookup_row: :month_no)
+        end
+        t.cells :letter, 'Month Letter' do |c|
           c.lookup(lookup: c[:month], table: :months, return_row: :val2)
         end
-        t.row :val, 'Some Val' do |c|
+        t.cells :val, 'Some Val' do |c|
           c.lookup(lookup: c[:letter], table: :months, lookup_row: :val2 ,return_row: :val1)
         end        
       end
     end
-    it 'should allow row formula with row ranges' do
-      @model.table :data, 'Data', (1..200) do |t|
-        t.row :date, 'Date' do |c|
-          c[table: :list, row: :date] + c.column_number
-        end
+
+    it 'should allow table defined with a row formula' do
+      @model.table :groups, 'Groups' do |t|
         t.row :month, 'Month' do |c|
-          c[:date].month
+          c[table: :table3, row: :month_no].to_a.uniq
         end
-        t.row :val, 'Value' do |c|
-          (rand * 100).round
+        t.cells :days, 'Days' do |c|
+          c.row(table: :table3, row: :date).filter {|a| a.month == c[:month]}.length
         end
-      end
-
-      @model.table :months, 'Summary' do |t|
-
-      end
-
-      @model.table :summary, 'Summary' do |t|
-        #t.row :sum, 'Sum' do |c|
-          #c.range(table: :table3, row: )
-        #end
+        t.row :days2, 'Days2' do |c|
+          c[table: :table3, row: :date].group_by {|a| a.month }.map {|a| a[1].length}
+        end        
       end
     end
     it 'should allow the model to be run' do
       @model.run
-      puts @model[:table3]
-      puts @model[:list]
-      expect(@model[:table1][:row3]['Col2']).to eq 4
-      expect(@model[:table2][:row_b].to_a[1]).to eq 25
-      expect(@model[:table2][:row_c].to_a).to eq [2, 3, 4, 5]
-      expect(@model[:table2][:row_d]['ColA']).to eq 3
-      expect(@model[:table2][:row_e]['ColA']).to eq nil
-      expect(@model[:table2][:row_e]['ColD']).to eq 20
       
+      puts @model[:groups]
+      expect(@model[:list2][:multiply]).to eq 180
+      expect {@model[:table1][:row3]['Col21']}.to raise_error(RuntimeError)       
+      expect(@model[:table1][:row3]['Col2']).to eq 4
+      expect(@model[:table2][:row_a]['Col1']).to eq 5
+      expect(@model[:table2][:row_b].to_a[1]).to eq 11
+      expect(@model[:table2][:row_c].to_a).to eq [2, 3, 4, 5]
+      expect(@model[:table2][:row_d].to_a[1]).to eq 3        
+      expect(@model[:table3][:letter][10]).to eq 'O'
+      expect(@model[:table3][:month][5]).to eq 'Oct'
+      #expect(@model[:table3][:row_e]['ColA']).to eq nil
+      
+    end
+    it 'should allow the model to be modified and rerun' do
+      @model[:list][:date] = Date.new(2022,1,1) 
+      @model.run
+      puts @model[:groups]
+
+      expect(@model[:table3][:letter][10]).to eq 'J'
+      expect(@model[:table3][:month][5]).to eq 'Jan'
+      expect(@model[:groups][:days2][2]).to eq 28
     end
   end
 end

@@ -18,11 +18,12 @@ module Burnham
 
     # create a row with a block that returns a vals array
     def row(*args, &block)
-      
       if args[0].class == Hash
         ref=args[0][:ref]
         name=args[0][:name]
         metadata=args[0][:metadata]
+        not_index_dependent = args[0][:not_index_dependent]
+        not_index = args[0][:not_index]
       else
         ref = args[0]
         name = args[1]
@@ -30,10 +31,10 @@ module Burnham
       raise ArgumentError.new("Existing row with ref: " + ref.to_s) if @rows.has_key?(ref)
       raise ArgumentError.new("Must provide a formula for row: " + ref.to_s) if (not block_given?)
 
-      is_index = @index.nil?
+      is_index = @index.nil? unless not_index
 
       row = Row.new()
-      row.new_row(ref, name, metadata, self, is_index, block)
+      row.new_row(ref, name, metadata, self, is_index, not_index_dependent, block)
       @index = row if is_index
       @rows[row.ref] = row
       @model.register_row(row)      
@@ -108,5 +109,8 @@ module Burnham
       @rows[row_ref].values=new_values
     end
     
+    def columns
+      (@rows.to_a.map {|r| r[1].to_a}).transpose
+    end
   end
 end

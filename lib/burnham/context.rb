@@ -34,6 +34,7 @@ module Burnham
       
       sel_row.register_dependent(@rw)
       if column_number>=0
+        raise ArgumentError.new("Invalid column: #{args.to_s}.") if column_number > (sel_row.table.width-1)
         sel_row.cells[column_number] 
       else
         nil 
@@ -85,7 +86,7 @@ module Burnham
       raise RuntimeError.new("Row '#{row_ref.to_s}' not found in table '#{table.ref.to_s}'.") unless table.rows.has_key?(row_ref)
       sel_row = table.rows[row_ref]
       sel_row.register_dependent(@rw)
-      sel_row.to_a
+      sel_row
     end
 
   end
@@ -114,8 +115,7 @@ module Burnham
         column_no = args[:column_number] if args.has_key?(:column_number)
         column_no = row.table.index_of(args[:column_ref]) if args.has_key?(:column_ref)
       end
-      raise ArgumentError.new("Cant determine row " + args.to_s) if column_no.nil?
-      raise ArgumentError.new("Invalid column #{args.to_s}.") if column_no<0 or column_no > (@rw.table.width-1)
+      raise ArgumentError.new("Cant determine column: " + args.to_s) if column_no.nil?
       
       if args.class==Hash
         args[:column_number] = column_no

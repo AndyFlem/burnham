@@ -123,7 +123,7 @@ module Burnham
     it 'should allow the model to be run' do
       @model.run
       
-      puts @model[:groups]
+      #puts @model[:groups]
       expect(@model[:list2][:multiply]).to eq 180
       expect {@model[:table1][:row3]['Col21']}.to raise_error(RuntimeError)       
       expect(@model[:table1][:row3]['Col2']).to eq 4
@@ -139,11 +139,55 @@ module Burnham
     it 'should allow the model to be modified and rerun' do
       @model[:list][:date] = Date.new(2022,1,1) 
       @model.run
-      puts @model[:groups]
+      #puts @model[:groups]
 
       expect(@model[:table3][:letter][10]).to eq 'J'
       expect(@model[:table3][:month][5]).to eq 'Jan'
       expect(@model[:groups][:days2][2]).to eq 28
+    end
+    it 'should allow you to load from csv' do
+      custom_converter = proc do |value, field_info|
+        case field_info.header
+        when 'Date'
+          Date.strptime(value,'%d/%m/%Y')
+        when 'Flow'
+          value.to_f
+        end
+      rescue
+        puts field_info.header + ':' + value
+      end
+      model2 = Model.new('CSV Model')
+
+      model2.table :params, 'Params' do |list|
+        list.cells :multiplier, 'Multiplier', 2
+      end
+
+      model2.table_from_csv :flows, 'Flows', './spec/flows.csv', custom_converter do |table|
+        table.cells :double, 'Double' do |c| c[:flow] * c[table: :params, row: :multiplier] end
+      end
+
+      model2.table_of_aggregates :flows, :flows_monthly, 'MOnthly Flows', :month,'MOnth',:date, proc {|date| Date.new(date.year, date.month) } , {flow: [:count, :mean, :median], double: [:count, :mean]} do |t|
+          t.cells :max_of_means, 'Max of Means' do |c|
+            [c[:flow_mean], c[:double_mean]].max
+          end 
+      end
+  
+      model2.run
+      expect(model2[:flows][:flow][Date.new(1925,02,11)]).to eq 1183.4396
+      expect(model2[:flows][:double][Date.new(1925,02,11)]).to eq 1183.4396*2
+
+      expect(model2[:flows_monthly][:max_of_means][Date.new(1924,10,01)]).to eq 200.0
+      
+      model2[:params][:multiplier] = 3
+      model2.run
+
+      expect(model2[:flows_monthly][:max_of_means][Date.new(1924,10,01)]).to eq 300.0
+      
+      #puts model2[:flows_monthly][:month]
+
+      #p model2[:flows].columns
+      #p model2[:flows][:flow]
+      
     end
   end
 end

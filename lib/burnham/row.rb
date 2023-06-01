@@ -7,7 +7,7 @@ module Burnham
     attr_reader :dependents
     attr_reader :is_formula, :is_run, :is_cells, :is_index
 
-    def new_row(ref, name, metadata, table, is_index, formula)      
+    def new_row(ref, name, metadata, table, is_index, not_index_dependent, formula)      
       setup(ref, name, metadata, table)
 
       @is_cells = false
@@ -15,6 +15,7 @@ module Burnham
       @is_formula = true
       @is_run =  false
       @is_index = is_index
+      @not_index_dependent = not_index_dependent
     end
 
     def new_cells(ref, name, metadata, table, is_index, vals, formula)
@@ -26,6 +27,7 @@ module Burnham
       @is_formula = (not formula.nil?)
       @is_run =  (not @is_formula)
       @is_index = is_index
+      @is_index_dependent = true
       
       unless vals.nil?
         if vals.class == Array
@@ -81,7 +83,10 @@ module Burnham
     def run
       if @is_formula and not @is_run
         #puts "Running " + address + ".."
-        @table.index.register_dependent(self) unless @is_index
+        unless @is_index or @not_index_dependent
+          #puts "Registering as dependent on index: " + address
+          @table.index.register_dependent(self)
+        end
 
         if @is_cells
           @cells = @table.index.cells.map.with_index do |c, i| 

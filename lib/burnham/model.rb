@@ -29,6 +29,30 @@ module Burnham
       table
     end
 
+    def table_sort(
+      input_table_ref,
+      sort_row_ref,
+      output_table_ref,
+      output_table_name,
+      sort_fn = proc {|v| v},
+      &block)
+
+      output_table = table output_table_ref, output_table_name do |t|      
+        t.row ref: :order_pairs, hidden: true, not_index: true, not_index_dependent: true do |c|
+          c[table: input_table_ref, row: sort_row_ref].to_a.zip(*@tables[input_table_ref].rows.values.map(&:to_a)).sort_by &sort_fn
+        end
+        @tables[input_table_ref].rows.each_value.with_index do |rw,i|
+          unless rw.hidden
+            t.row ref: rw.ref, name: rw.name do |c|
+              c[:order_pairs].map { |v| v[i+1] }
+            end
+          end
+        end
+      end
+      yield output_table
+      output_table
+    end
+
     def table_of_aggregates(
       input_table_ref, 
       output_table_ref, 
@@ -43,14 +67,14 @@ module Burnham
       #input_table = @tables[input_table_ref]
       
       output_table = table output_table_ref, output_table_name do |t|      
-        t.row(ref: :groups, name: 'Groups', not_index: true, not_index_dependent: true) do |c|
+        t.row output_group_ref, output_group_name do |c|
+          c[:groups].map {|o| o[0]}
+        end        
+        t.row(ref: :groups, hidden: true, not_index: true, not_index_dependent: true) do |c|
           #produces groups of column numbers of the parent table based on the provided grouping function
           rw = c[table: input_table_ref, row: group_row].to_a
           rw.map{|o| group_fn.call(o)}.zip((0..rw.count-1).to_a).group_by{ |o| o[0] }.map{|o| [o[0],  o[1].map{|p| p[1]}]}
         end
-        t.row output_group_ref, output_group_name do |c|
-          c[:groups].map {|o| o[0]}
-        end        
         aggregates.each_pair do |row, operators|
           #produce a row with groups of values of the input row
           val_groups = (row.to_s + '_values').to_sym

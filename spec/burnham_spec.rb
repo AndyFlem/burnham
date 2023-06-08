@@ -106,7 +106,13 @@ module Burnham
         end        
       end
     end
-
+    it 'should allow row defined by filter formula' do
+      @model.table :filtered, 'Filtered' do |t|
+        t.row :jans, 'Jans' do |c|
+          c.filter(:table3, :month, :val) {|v| v == 'Jan'}
+        end
+      end
+    end
     it 'should allow table defined with a row formula' do
       @model.table :groups, 'Groups' do |t|
         t.row :month, 'Month' do |c|
@@ -119,11 +125,11 @@ module Burnham
           c[table: :table3, row: :date].group_by {|a| a.month }.map {|a| a[1].length}
         end        
       end
-    end
+    end    
     it 'should allow the model to be run' do
       @model.run
       
-      #puts @model[:groups]
+      puts @model[:filtered]
       expect(@model[:list2][:multiply]).to eq 180
       expect {@model[:table1][:row3]['Col21']}.to raise_error(RuntimeError)       
       expect(@model[:table1][:row3]['Col2']).to eq 4
@@ -173,6 +179,7 @@ module Burnham
       end
   
       model2.run
+
       expect(model2[:flows][:flow][Date.new(1925,02,11)]).to eq 1183.4396
       expect(model2[:flows][:double][Date.new(1925,02,11)]).to eq 1183.4396*2
 

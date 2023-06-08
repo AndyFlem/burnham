@@ -13,7 +13,9 @@ module Burnham
     end
 
     def to_s
-      "\n" + @ref.to_s + ':' + @name + "\n" + @rows.map {|row_ref, row|  row.to_s + "\n" }.join("")
+      "\n" + @ref.to_s + ':' + @name + " - " + @rows.count.to_s + " rows x " + @index.to_a.count.to_s + "\n" + @rows.map do |row_ref, row|  
+        row.to_s + "\n" unless row.hidden
+      end.join("")
     end
 
     # create a row with a block that returns a vals array
@@ -24,6 +26,7 @@ module Burnham
         metadata=args[0][:metadata]
         not_index_dependent = args[0][:not_index_dependent]
         not_index = args[0][:not_index]
+        hidden = args[0][:hidden]
       else
         ref = args[0]
         name = args[1]
@@ -34,7 +37,7 @@ module Burnham
       is_index = @index.nil? unless not_index
 
       row = Row.new()
-      row.new_row(ref, name, metadata, self, is_index, not_index_dependent, block)
+      row.new_row(ref, name, metadata, self, is_index, not_index_dependent, hidden, block)
       @index = row if is_index
       @rows[row.ref] = row
       @model.register_row(row)      
@@ -48,6 +51,7 @@ module Burnham
         name=args[0][:name]
         vals=args[0][:values]
         metadata=args[0][:metadata]
+        hidden = args[0][:hidden]
       else
         ref = args[0]
         name = args[1]
@@ -60,43 +64,32 @@ module Burnham
       raise ArgumentError.new("Can only provide values or a formula for row: " + ref.to_s) if (not vals.nil?) and block_given?
       raise ArgumentError.new("Must provide values or a formula for row: " + ref.to_s) if (vals.nil? and not block_given?)
 
-      is_index = (@index.nil? and (not vals.nil?))
+      is_index = @index.nil? unless vals.nil?
 
       row = Row.new()
-      row.new_cells(ref, name, metadata, self, is_index, vals, block)
+      row.new_cells(ref, name, metadata, self, is_index, hidden, vals, block)
       @index = row if is_index
       @rows[row.ref] = row
       @model.register_row(row)
     end
 
-    #def column(value)
-    #  raise RuntimeError.new("Table not built.") unless has_index
-    #  @index.index_of(value)
-    #end
-
     def is_list
-      raise RuntimeError.new("Table not built.") unless has_index
+      raise RuntimeError.new("Table not built.") if @index.nil?
       @index.values.length == 1
     end
 
     def width
-      raise RuntimeError.new("Table not built.") unless has_index
+      raise RuntimeError.new("Table not built.") if @index.nil?
       @index.length
     end
 
-    def index_of(value)
-      raise RuntimeError.new("Table not built.") unless has_index
-      @index.find_index(value)
+    def index_of(column_ref)
+      raise RuntimeError.new("Table not built.") if @index.nil?
+      @index.find_index(column_ref)
     end
-
 
     def height
       @rows.length
-    end
-
-    def has_index
-      #puts @index.address
-      (not @index.nil?) && @index.is_run
     end
 
     def [](row_ref)
@@ -109,6 +102,14 @@ module Burnham
       @rows[row_ref].values=new_values
     end
     
+    def column(column_number)
+      @rows.values.map {|r| r.column(column_number)}  
+    end
+
+    def column_to_s(column_number)
+      @rows.values.map {|r| r.name}.zip(column(column_number)).map {|r| r[0] + ': ' + r[1].to_s}.join(', ')
+    end
+
     def columns
       (@rows.to_a.map {|r| r[1].to_a}).transpose
     end

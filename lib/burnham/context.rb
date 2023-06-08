@@ -67,12 +67,29 @@ module Burnham
       table.rows[args[:return_row]].column(indx)
     end
 
-    #return a row
-    # {:table, :row} or :row
+    #return a row filtered on another row 
+    def filter(table_ref, filter_row_ref, return_row_ref, &block)
+      raise RuntimeError.new("Table '#{table_ref.to_s}' not found.") unless @rw.model.tables.has_key?(table_ref)
+      table = @rw.model.tables[table_ref]
+      raise RuntimeError.new("Row '#{filter_row_ref.to_s}' not found.") unless table.rows.has_key?(filter_row_ref)
+      filter_row = table.rows[filter_row_ref]
+      raise RuntimeError.new("Row '#{return_row_ref.to_s}' not found.") unless table.rows.has_key?(return_row_ref)
+      return_row = table.rows[return_row_ref]
+
+      filter_row.register_dependent(@rw)
+      return_row.register_dependent(@rw)
+
+      l = filter_row.zip(return_row)
+      l.filter {|o| block.call(o[0])}.map {|o| o[1]}
+      
+    end
+
+    #return a row or a table
+    # {[:table], [:row]} or :row
     def [](args)
       if args.class == Hash
         table_ref = args[:table] if args.has_key?(:table)
-        row_ref = args[:row]
+        row_ref = args[:row] if args.has_key?(:row)
       else
         row_ref = args
       end
@@ -83,10 +100,19 @@ module Burnham
         raise RuntimeError.new("Table '#{table_ref.to_s}' not found.") unless @rw.model.tables.has_key?(table_ref)
         table = @rw.model.tables[table_ref]
       end
-      raise RuntimeError.new("Row '#{row_ref.to_s}' not found in table '#{table.ref.to_s}'.") unless table.rows.has_key?(row_ref)
-      sel_row = table.rows[row_ref]
-      sel_row.register_dependent(@rw)
-      sel_row
+      if row_ref
+        raise RuntimeError.new("Row '#{row_ref.to_s}' not found in table '#{table.ref.to_s}'.") unless table.rows.has_key?(row_ref)
+        sel_row = table.rows[row_ref]
+        sel_row.register_dependent(@rw)
+        if table.width == 1
+          sel_row.column(0)
+        else
+          sel_row
+        end
+      else
+        table.index.register_dependent(@rw)
+        table
+      end
     end
 
   end

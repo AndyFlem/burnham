@@ -5,10 +5,10 @@ module Burnham
     attr_reader :table, :model
     attr_reader :ref, :name, :metadata
     attr_reader :dependents
-    attr_reader :is_formula, :is_run, :is_cells, :is_index
+    attr_reader :is_formula, :is_run, :is_cells, :is_index, :hidden
 
-    def new_row(ref, name, metadata, table, is_index, not_index_dependent, formula)      
-      setup(ref, name, metadata, table)
+    def new_row(ref, name, metadata, table, is_index, not_index_dependent, hidden, formula)      
+      setup(ref, name, metadata, hidden, table)
 
       @is_cells = false
       @formula = formula
@@ -18,9 +18,9 @@ module Burnham
       @not_index_dependent = not_index_dependent
     end
 
-    def new_cells(ref, name, metadata, table, is_index, vals, formula)
+    def new_cells(ref, name, metadata, table, is_index, hidden, vals, formula)
       #p ref.to_s + " " + is_index.to_s
-      setup(ref, name, metadata, table)
+      setup(ref, name, metadata, hidden, table)
     
       @is_cells = true
       @formula = formula
@@ -38,18 +38,20 @@ module Burnham
       end
     end
 
-    def setup(ref, name, metadata, table)
+    def setup(ref, name, metadata, hidden, table)
       @ref = ref
       @name = name
       @metadata = metadata
       @table = table
+      @hidden = hidden
       @model = @table.model
       @dependents = Hash.new
     end
 
     def length
-      @cells.length
+      @cells.nil? ? 0 : @cells.length
     end
+    alias :width :length
 
     def values=(vals)
       raise RuntimeError.new("Cant set values on a formula type row.") if @is_formula
@@ -96,6 +98,7 @@ module Burnham
           @cells = @formula.call(Context.new(self))
         end
         @is_run = true
+        raise RuntimeError.new("Row length (#{@cells.length}) does not equal table index length (#{@table.width}). " + address) if @cells.length != @table.width
         #puts "..complete run " + address + "."
       end
     end
@@ -118,9 +121,8 @@ module Burnham
     end
 
     def column (column_number)
-      
-      raise ArgumentError.new("No column number #{column_number}") if column_number > @cells.length
       raise RuntimeError.new("Row not run.") unless @is_run
+      raise ArgumentError.new("No column number #{column_number}") if column_number > @cells.length
       @cells[column_number]
     end
 
@@ -133,7 +135,26 @@ module Burnham
     end
 
     def to_s
-      @ref.to_s + ':' + @name  +  ' ' + (@cells.nil? ? 'nil' : @cells.join(','))
+      max_cols = 4
+      disp = []
+      ret =  @name[...29].rjust(30) + ' - '
+      unless @cells.nil?
+        disp = if @cells.count > max_cols * 2
+          @cells[...max_cols] + ['...'] + @cells[-max_cols...]
+        else
+          @cells
+        end
+        ret += disp.map do |e| 
+          st = if e.class == Float
+            sprintf('%.3f', e)
+          else
+            e.to_s
+          end[0..9]
+          st.rjust(10)
+        end.join(', ')
+      end
+       
+      ret 
     end
 
     def address

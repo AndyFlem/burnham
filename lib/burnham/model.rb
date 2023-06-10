@@ -11,7 +11,6 @@ module Burnham
 
     def table(ref, name, &block)
       raise ArgumentError.new("Cant add another table with the same ref.") if @tables.has_key?(ref)
-      #columns = columns.to_a if columns.class == Range
       table = Table.new(ref, name, self, &block)
       @tables[table.ref] = table
       table
@@ -39,7 +38,7 @@ module Burnham
 
       output_table = table output_table_ref, output_table_name do |t|      
         t.row ref: :order_pairs, hidden: true, not_index: true, not_index_dependent: true do |c|
-          c[table: input_table_ref, row: sort_row_ref].to_a.zip(*@tables[input_table_ref].rows.values.map(&:to_a)).sort_by &sort_fn
+          c[table: input_table_ref, row: sort_row_ref].to_a.map {|v| sort_fn.call(v)}.zip(*@tables[input_table_ref].rows.values.map(&:to_a)).sort_by {|v| v[0]}
         end
         @tables[input_table_ref].rows.each_value.with_index do |rw,i|
           unless rw.hidden
@@ -64,8 +63,6 @@ module Burnham
       aggregates, 
       &block)
 
-      #input_table = @tables[input_table_ref]
-      
       output_table = table output_table_ref, output_table_name do |t|      
         t.row output_group_ref, output_group_name do |c|
           c[:groups].map {|o| o[0]}
@@ -92,6 +89,10 @@ module Burnham
       output_table
     end
 
+    def table_select(input_table_ref, column_select_fn, output_table_ref, output_table_name, output_rows = [])
+      
+    end
+
     def register_row(row)
       @rows[[row.table.ref, row.ref]] = row
     end
@@ -110,5 +111,48 @@ module Burnham
       @rows.each_value(&:run)      
     end
 
-  end  
+    def to_xlsx(name, tables)
+      Axlsx::Package.new do |p|
+
+        row_title = p.workbook.styles.add_style(sz: 9, b: true)
+
+        float_format = lambda do |val| 
+          begin
+            scale = [(val != 0.0 ? Math.log10(val.abs).floor : -1), -5].max
+            p.workbook.styles.add_style(sz: 9, format_code: '#,##0' + (scale<3 ? ('.000' + '#' * (scale-2).abs) : ''))  
+          rescue => e
+            p val, e
+          end
+        end
+
+        format_value = lambda do |val|
+          case val
+          when Float
+            float_format.call(val)
+          when Integer
+            p.workbook.styles.add_style(sz: 9, format_code: '#,##0')
+          when Date
+            p.workbook.styles.add_style(sz: 9, format_code: 'yyyy-mm-dd')
+          else
+            nil
+          end
+        end
+
+        @tables.each_value do |t|
+          if tables.include? t.ref
+            p.workbook.add_worksheet(name: t.name) do |sheet|
+              heads = t.rows.values.select {|r| not r.hidden}.map {|r| r.name}
+              styles = t.rows.values.select {|r| not r.hidden}.map {|r| format_value.call(r.to_a[(r.width/2.floor)])}
+              sheet.add_row(heads, style: (1..heads.length).map {row_title}, widths: (1..heads.length).map {:ignore}, height: 40)
+              dat = t.columns 
+              dat.each do |r|
+                sheet.add_row(r, style: styles)
+              end
+            end
+          end
+        end
+        p.serialize(name)
+      end
+    end
+  end
 end

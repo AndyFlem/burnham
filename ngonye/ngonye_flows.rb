@@ -10,7 +10,7 @@ module Burnham
     when 'Date'
       Date.strptime(value,'%d/%m/%Y')
     when 'Flow'
-      value.to_f.round(1)
+      value.to_f
     when 'Level'
       value.to_f
     end
@@ -24,7 +24,7 @@ module Burnham
     #Ngonye Discharge = 1093.0355*(Ngonye Stage - 2.85)**1.659
     #Ngonye Discharge = a *(Ngonye Stage + b)**c
     t.cells :ngo_a, 'Ngonye Stage Discharge Param a', 1093.0355 
-    t.cells :ngo_b, 'Ngonye Stage Discharge Param b', - 2.85 
+    t.cells :ngo_b, 'Ngonye Stage Discharge Param b', -2.85
     t.cells :ngo_c, 'Ngonye Stage Discharge Param c', 1.659 
     t.cells :fdc_interval, 'FDC Interval Percent', 0.1 
     t.cells :lag, 'Vic Falls to Sioma Lag Days', 11 
@@ -37,7 +37,7 @@ module Burnham
   flows_model.table_from_csv :flow, 'Ngonye Measured Levels', './ngonye/daily_gauge_ngonye.csv', csv_converter do |t|
     t.cells :flow_ngonye, 'Flow at Ngonye' do |c|
       #Ngonye Discharge = a *(Ngonye Stage + b)**c
-      (c[table: :params, row: :ngo_a] * (c[:level] + c[table: :params, row: :ngo_b])**c[table: :params, row: :ngo_c]).round(1)
+      (c[table: :params, row: :ngo_a] * (c[:level] + c[table: :params, row: :ngo_b])**c[table: :params, row: :ngo_c])
     end
     t.row :flow_vicfalls, 'Flow at Vic Falls' do |c|
       c.filter :flow_vicfalls, :date, :flow do |date|
@@ -46,44 +46,43 @@ module Burnham
     end
   end
 
+  split = proc {|vals, intervals|
+    interval = vals.length.to_f / intervals
+    (0..intervals).to_a.map do |v| 
+      i = v * interval
+      d = i-i.floor
+      i -=1 if i == vals.length
+      if d==0
+        vals[i]
+      else
+        vals[i] - (vals[i]-vals[i+1])*d
+      end
+    end
+  }
+
   flows_model.table :fdc, 'Flow Duration Curve' do |t|
     t.row :exceedance, 'Exceedance' do |c| 
       (1..100/c[table: :params, row: :fdc_interval]+1).to_a.map do 
-        |v| (c[table: :params, row: :fdc_interval] * (v-1)).round(3)
+        |v| (c[table: :params, row: :fdc_interval] * (v-1)/100).round(3)
       end
     end
 
     t.row :flow_ngonye, 'Ngonye Flow' do |c|
-      vals = c[table: :flow, row: :flow_ngonye].to_a.sort
+      vals = c[table: :flow, row: :flow_ngonye].to_a.sort_by {|v| 10000-v }
       intervals = 100/c[table: :params, row: :fdc_interval]
-      interval = vals.length / intervals
-      (0..intervals).to_a.map do |v| 
-        i = (vals.length-(v * interval).round)
-        i -=1 if i == vals.length 
-        vals[i]
-      end
+      split.call vals, intervals
     end
  
     t.row :flow_vicfalls, 'Vic Falls Flow' do |c|
-      vals = c[table: :flow_vicfalls, row: :flow].to_a.sort
+      vals = c[table: :flow_vicfalls, row: :flow].to_a.sort_by {|v| -v }
       intervals = 100/c[table: :params, row: :fdc_interval]
-      interval = vals.length / intervals
-      (0..intervals).to_a.map do |v| 
-        i = (vals.length-(v * interval).round)
-        i -=1 if i == vals.length 
-        vals[i]
-      end
+      split.call vals, intervals
     end
     
     t.row :flow_vicfalls_overlap, 'Vic Falls Overlap Flow' do |c|
-      vals = c[table: :flow, row: :flow_vicfalls].to_a.sort
+      vals = c[table: :flow, row: :flow_vicfalls].to_a.sort_by {|v| -v }
       intervals = 100/c[table: :params, row: :fdc_interval]
-      interval = vals.length / intervals
-      (0..intervals).to_a.map do |v| 
-        i = (vals.length-(v * interval).round)
-        i -=1 if i == vals.length 
-        vals[i]
-      end
+      split.call vals, intervals
     end    
 
     t.cells :flow_vicfalls_ratio, 'Vic Falls Flow Ratio' do |c|
@@ -108,15 +107,18 @@ module Burnham
     end
   end
 
-
-  flows_model.table_sort :flow_vicfalls, :flow, :exceedance, 'Flows by Exceedance' do |t|
+  flows_model.table_sort(:flow_vicfalls, :flow, :exceedance, 'Flows by Exceedance', proc {|v| - v}) do |t|
     t.row ref: :no, hidden: true do |c|
       (1..c[table: :flow_vicfalls].width).to_a
     end
+    t.cells :lagged_date, 'Lagged Date' do |c|
+      c[:date] - c[table: :params, row: :lag]
+    end
+
     t.row :exceedance, 'Exceedance' do |c|
       r = c[:no].to_a
       tot = r.count
-      c[:no].to_a.map { |v| v.to_f/tot}
+      c[:no].to_a.map { |v| (v.to_f/tot)}
     end
 
     t.row :conversion, 'Conversion Factor' do |c|
@@ -140,9 +142,6 @@ module Burnham
     t.cells :flow_ngonye, 'Ngonye Synthetic Flow' do |c|
       c[:conversion] * c[:flow]
     end
-    t.cells :lagged_date, 'Lagged Date' do |c|
-      c[:date] + c[table: :params, row: :lag]
-    end
   end
 
   flows_model.table_sort :exceedance, :date, :synthetic, 'Ngonye Synthetic Flows' do |t|
@@ -153,6 +152,8 @@ module Burnham
   #puts flows_model[:flows_vicfalls].width
   puts flows_model[:flow]
   puts flows_model[:fdc]
-  #puts flows_model[:exceedance]
-  #puts flows_model[:synthetic]
+  puts flows_model[:exceedance]
+  puts flows_model[:synthetic]
+
+  puts Benchmark.measure {flows_model.to_xlsx 'flows.xlsx', [:params, :fdc, :synthetic]}
 end

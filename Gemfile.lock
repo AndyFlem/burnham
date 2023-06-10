@@ -2,14 +2,25 @@ PATH
   remote: .
   specs:
     burnham (0.1.0)
+      caxlsx
       descriptive_statistics
       ruby-statistics
 
 GEM
   remote: https://rubygems.org/
   specs:
+    caxlsx (3.4.1)
+      htmlentities (~> 4.3, >= 4.3.4)
+      marcel (~> 1.0)
+      nokogiri (~> 1.10, >= 1.10.4)
+      rubyzip (>= 1.3.0, < 3)
     descriptive_statistics (2.5.1)
     diff-lcs (1.5.0)
+    htmlentities (4.3.4)
+    marcel (1.0.2)
+    nokogiri (1.15.2-x86_64-linux)
+      racc (~> 1.4)
+    racc (1.7.0)
     rake (13.0.6)
     rspec (3.12.0)
       rspec-core (~> 3.12.0)
@@ -25,6 +36,7 @@ GEM
       rspec-support (~> 3.12.0)
     rspec-support (3.12.0)
     ruby-statistics (3.0.2)
+    rubyzip (2.3.2)
 
 PLATFORMS
   x86_64-linux

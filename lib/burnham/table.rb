@@ -27,6 +27,7 @@ module Burnham
         not_index_dependent = args[0][:not_index_dependent]
         not_index = args[0][:not_index]
         hidden = args[0][:hidden]
+        format = args[0][:format]
       else
         ref = args[0]
         name = args[1]
@@ -111,7 +112,7 @@ module Burnham
     end
 
     def columns
-      (@rows.to_a.map {|r| r[1].to_a}).transpose
+      (@rows.values.select {|v| not v.hidden}.map(&:to_a)).transpose
     end
   end
 end

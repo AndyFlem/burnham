@@ -98,7 +98,7 @@ module Burnham
           @cells = @formula.call(Context.new(self))
         end
         @is_run = true
-        raise RuntimeError.new("Row length (#{@cells.length}) does not equal table index length (#{@table.width}). " + address) if @cells.length != @table.width
+        raise RuntimeError.new("Row length (#{@cells.length}) does not equal table index length (#{@table.width}). " + address) if @cells.length != @table.width and @table.width!=0
         #puts "..complete run " + address + "."
       end
     end

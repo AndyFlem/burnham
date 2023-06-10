@@ -2,6 +2,7 @@
 require 'date'
 require 'csv'
 require 'descriptive_statistics'
+require 'caxlsx'
 
 require_relative "burnham/version"
 require_relative "burnham/model"

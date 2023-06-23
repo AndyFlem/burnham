@@ -24,15 +24,15 @@ module Burnham
           t.cells data.headers[indx].gsub(' ','').downcase.to_sym, data.headers[indx], col[1]
         end
       end
-      yield table
+      yield table if block_given?
       table
     end
 
     def table_sort(
-      input_table_ref,
-      sort_row_ref,
       output_table_ref,
       output_table_name,
+      input_table_ref,
+      sort_row_ref,
       sort_fn = proc {|v| v},
       &block)
 
@@ -48,14 +48,14 @@ module Burnham
           end
         end
       end
-      yield output_table
+      yield output_table if block_given?
       output_table
     end
 
     def table_of_aggregates(
-      input_table_ref, 
       output_table_ref, 
       output_table_name, 
+      input_table_ref, 
       output_group_ref,
       output_group_name,
       group_row, 
@@ -85,13 +85,102 @@ module Burnham
           end
         end
       end
-      yield output_table
+      yield output_table if block_given?
       output_table
     end
 
-    def table_select(input_table_ref, column_select_fn, output_table_ref, output_table_name, output_rows = [])
+    def table_join(
+      output_table_ref, 
+      output_table_name, 
+      left_table_ref, 
+      left_row_ref, 
+      right_table_ref, 
+      right_row_ref, 
+      left_rows, 
+      right_rows, 
+      is_outer)
       
+      left_table = @tables[left_table_ref]
+      right_table = @tables[right_table_ref]
+
+      output_table = table output_table_ref, output_table_name do |t|  
+        indexes = []
+        right_pointer = 0
+        t.row ref: :indexes, hidden: true do |c|
+          right = c[table: right_table_ref, row: right_row_ref].to_a 
+          c[table: left_table_ref, row: left_row_ref].to_a.each.with_index do |lval, left_pointer|
+            if lval == right[right_pointer]
+              indexes << [ left_pointer, right_pointer ]
+              right_pointer +=1
+              break if right_pointer == right.length
+            else
+              indexes << [ left_pointer, nil ] if is_outer
+            end
+          end
+          indexes
+        end
+
+        rows_build = proc  do |rows, table, is_left|
+          rows.each do |row_def|
+            if row_def.class == Hash
+              in_row_ref = row_def.keys[0]
+              out_row_ref = row_def.values[0]
+            else
+              in_row_ref = row_def
+              out_row_ref = row_def
+            end
+            
+            t.row out_row_ref, table.rows[in_row_ref].name do |c|
+              rw = c[table: table.ref, row: in_row_ref].to_a
+              c[:indexes].map do |v|
+
+                if is_left 
+                  rw[v[0]]
+                else
+                  rw[v[1]] if v[1]
+                end
+              end
+            end
+          end
+        end
+
+        rows_build.call(left_rows, left_table, true)
+        rows_build.call(right_rows, right_table, false)
+        
+      end
+      yield output_table if block_given?
+      output_table
     end
+
+    def table_select(
+      output_table_ref, 
+      output_table_name, 
+      input_table_ref, 
+      select_row, 
+      select_fn, 
+      output_rows = [])
+
+      output_table = table output_table_ref, output_table_name do |t|      
+
+        #row of selected column numbers from the parent table
+        t.row(ref: :column_nos, hidden: true, not_index: true, not_index_dependent: true) do |c|
+          rw = c[table: input_table_ref, row: select_row].to_a
+          rw.map{|v| select_fn.call(v) }.zip((0..rw.length).to_a).select{|v| v[0]}.map{|v| v[1]}
+        end
+
+        #selected columns of rows from input table
+        @tables[input_table_ref].rows.each_value do |rw|
+          unless rw.hidden or (output_rows != [] and not output_rows.include?(rw.ref))
+            t.row ref: rw.ref, name: rw.name do |c|
+              dat = c[table: input_table_ref, row: rw.ref].to_a
+              c[:column_nos].map { |v| dat[v] }
+            end
+          end
+        end
+      end
+      yield output_table if block_given?
+      output_table
+    end    
 
     def register_row(row)
       @rows[[row.table.ref, row.ref]] = row

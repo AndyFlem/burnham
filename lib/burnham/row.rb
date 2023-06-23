@@ -2,8 +2,9 @@ module Burnham
   class Row
     include Enumerable
 
+    attr_accessor :name, :metadata
     attr_reader :table, :model
-    attr_reader :ref, :name, :metadata
+    attr_reader :ref
     attr_reader :dependents
     attr_reader :is_formula, :is_run, :is_cells, :is_index, :hidden
 
@@ -137,7 +138,7 @@ module Burnham
     def to_s
       max_cols = 4
       disp = []
-      ret =  @name[...29].rjust(30) + ' - '
+      ret =  (@name + '(' +  @ref.to_s + ')')[...29].rjust(30) + ' - '
       unless @cells.nil?
         disp = if @cells.count > max_cols * 2
           @cells[...max_cols] + ['...'] + @cells[-max_cols...]
